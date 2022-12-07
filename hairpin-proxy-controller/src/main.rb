@@ -196,7 +196,7 @@ class HairpinProxyController
       kind: 'Service',
       metadata: {
         namespace: @namespace,
-        name: @addr_to_proxy_svc[address],
+        name: "proxy-#{enc_address}",
         labels: {
           'app.kubernetes.io/name' => "hairpin-proxy",
           'app.kubernetes.io/instance' => "haproxy-#{enc_address}",
