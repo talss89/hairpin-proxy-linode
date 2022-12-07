@@ -123,7 +123,8 @@ class HairpinProxyController
     end
   end
 
-  def create_proxy(address, ingress_service_name)
+  def create_proxy(address, ingress_service_name, ingress_service_namespace)
+    svc_name = "#{ingress_service_name}.#{ingress_service_namespace}.svc.cluster.local"
     enc_address = address_digest(address)
     deployment = K8s::Resource.new({
       apiVersion: 'apps/v1',
@@ -138,7 +139,8 @@ class HairpinProxyController
           'app.kubernetes.io/component' => "haproxy",
           'app.kubernetes.io/part-of' => "hairpin-proxy",
           'app.kubernetes.io/managed-by' => "hairpin-proxy-controller",
-          'proxy-target' => ingress_service_name,
+          'sumcumo.com/ingress-service-name' => ingress_service_name,
+          'sumcumo.com/ingress-service-namespace' => ingress_service_namespace,
         },
       },
       spec:{
@@ -170,7 +172,7 @@ class HairpinProxyController
                   },
                   env: [{
                       name: "TARGET_SERVER",
-                      value: ingress_service_name
+                      value: svc_name
                   }],
               }]
           },
@@ -202,7 +204,8 @@ class HairpinProxyController
           'app.kubernetes.io/component' => "haproxy-service",
           'app.kubernetes.io/part-of' => "hairpin-proxy",
           'app.kubernetes.io/managed-by' => "hairpin-proxy-controller",
-          'proxy-target' => ingress_service_name,
+          'sumcumo.com/ingress-service-name' => ingress_service_name,
+          'sumcumo.com/ingress-service-namespace' => ingress_service_namespace,
         },
       },
       spec: {
@@ -263,7 +266,7 @@ class HairpinProxyController
         
         svc.status.loadBalancer.ingress.each do |lb|
           addr = lb.ip || lb.hostname
-          @ingresses[addr] = create_proxy(addr,svc_name)
+          @ingresses[addr] = create_proxy(addr,svc.metadata.name, svc.metadata.namespace)
           known.delete(addr)
         end
       end
