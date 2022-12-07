@@ -1,0 +1,3 @@
+kind: Fixed
+body: Proper handling of updating resources vs. creating of services and deployments
+time: 2022-12-07T17:13:43.64117+01:00

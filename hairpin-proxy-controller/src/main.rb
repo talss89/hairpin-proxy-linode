@@ -126,114 +126,151 @@ class HairpinProxyController
   def create_proxy(address, ingress_service_name, ingress_service_namespace)
     svc_name = "#{ingress_service_name}.#{ingress_service_namespace}.svc.cluster.local"
     enc_address = address_digest(address)
-    deployment = K8s::Resource.new({
-      apiVersion: 'apps/v1',
-      kind: 'Deployment',
-      metadata:{
-        namespace: @namespace,
-        name: "haproxy-#{enc_address}",
-        labels: {
-          'app.kubernetes.io/name' => "hairpin-proxy",
-          'app.kubernetes.io/instance' => "haproxy-#{enc_address}",
-          'app.kubernetes.io/version' => @version,
-          'app.kubernetes.io/component' => "haproxy",
-          'app.kubernetes.io/part-of' => "hairpin-proxy",
-          'app.kubernetes.io/managed-by' => "hairpin-proxy-controller",
-          'sumcumo.com/ingress-service-name' => ingress_service_name,
-          'sumcumo.com/ingress-service-namespace' => ingress_service_namespace,
-        },
-      },
-      spec:{
-        replicas: 1,
-        selector: {
-            matchLabels: {
-              'app.kubernetes.io/instance' => "haproxy-#{enc_address}",
-            }
-        },
-        template: {
-          metadata: {
-              labels: {
-                'app.kubernetes.io/instance' => "haproxy-#{enc_address}",
-              },
-          },
-          spec: {
-              containers: [{
-                  image: "#{@image}:#{@version}",
-                  name: "haproxy",
-                  resources: {
-                      requests: {
-                          memory: "100Mi",
-                          cpu: "100m",
-                      },
-                      limits: {
-                          memory: "200Mi",
-                          cpu: "150m",
-                      }
-                  },
-                  env: [{
-                      name: "TARGET_SERVER",
-                      value: svc_name
-                  }],
-              }]
-          },
+
+    begin
+      deployment = @k8s.get_resource(K8s::Resource.new({
+        apiVersion: 'apps/v1',
+        kind: 'Deployment',
+        metadata:{
+          namespace: @namespace,
+          name: "haproxy-#{enc_address}",
         }
-      }
-    })
-       
-    unless @dry_run
-      @log.info "Create deployment=#{deployment.metadata.name} in namespace=#{deployment.metadata.namespace}"
-      begin
+      }))
+
+      deployment[:metadata][:labels][:'sumcumo.com/ingress-service-name']=ingress_service_name
+      deployment[:metadata][:labels][:'sumcumo.com/ingress-service-namespace']=ingress_service_namespace
+      deployment[:spec][:template][:spec][:containers][0][:image]="#{@image}:#{@version}"
+      deployment[:spec][:template][:spec][:containers][0][:env][0][:value]=svc_name
+      
+      unless @dry_run
+        @log.info "Update deployment=#{deployment.metadata.name} in namespace=#{deployment.metadata.namespace}"
         deployment = @k8s.update_resource(deployment)
-      rescue K8s::Error::NotFound
-        deployment = @k8s.create_resource(deployment)
-      end
-    else
-      @log.info "[dry-run] Create deployment=#{deployment.metadata.name} in namespace=#{deployment.metadata.namespace}: \n #{deployment.to_yaml}"
-    end 
-
-    service = K8s::Resource.new({
-      apiVersion: 'v1',
-      kind: 'Service',
-      metadata: {
-        namespace: @namespace,
-        name: "proxy-#{enc_address}",
-        labels: {
-          'app.kubernetes.io/name' => "hairpin-proxy",
-          'app.kubernetes.io/instance' => "haproxy-#{enc_address}",
-          'app.kubernetes.io/version' =>  @version,
-          'app.kubernetes.io/component' => "haproxy-service",
-          'app.kubernetes.io/part-of' => "hairpin-proxy",
-          'app.kubernetes.io/managed-by' => "hairpin-proxy-controller",
-          'sumcumo.com/ingress-service-name' => ingress_service_name,
-          'sumcumo.com/ingress-service-namespace' => ingress_service_namespace,
+      else
+        @log.info "[dry-run] Update deployment=#{deployment.metadata.name} in namespace=#{deployment.metadata.namespace}: \n #{deployment.to_yaml}"
+      end 
+    rescue K8s::Error::NotFound
+      deployment = K8s::Resource.new({
+        apiVersion: 'apps/v1',
+        kind: 'Deployment',
+        metadata:{
+          namespace: @namespace,
+          name: "haproxy-#{enc_address}",
+          labels: {
+            'app.kubernetes.io/name' => "hairpin-proxy",
+            'app.kubernetes.io/instance' => "haproxy-#{enc_address}",
+            'app.kubernetes.io/version' => @version,
+            'app.kubernetes.io/component' => "haproxy",
+            'app.kubernetes.io/part-of' => "hairpin-proxy",
+            'app.kubernetes.io/managed-by' => "hairpin-proxy-controller",
+            'sumcumo.com/ingress-service-name' => ingress_service_name,
+            'sumcumo.com/ingress-service-namespace' => ingress_service_namespace,
+          },
         },
-      },
-      spec: {
-        type: 'ClusterIP',
-        ports: [
-          { 
-            name: "http",
-            port: 80 
+        spec:{
+          replicas: 1,
+          selector: {
+              matchLabels: {
+                'app.kubernetes.io/instance' => "haproxy-#{enc_address}",
+              }
           },
-          { 
-            name: "https",
-            port: 443
-          },
-        ],
-        selector: { 'app.kubernetes.io/instance' => "haproxy-#{enc_address}"},
-      },  
-    })
+          template: {
+            metadata: {
+                labels: {
+                  'app.kubernetes.io/instance' => "haproxy-#{enc_address}",
+                },
+            },
+            spec: {
+                containers: [{
+                    image: "#{@image}:#{@version}",
+                    name: "haproxy",
+                    resources: {
+                        requests: {
+                            memory: "100Mi",
+                            cpu: "100m",
+                        },
+                        limits: {
+                            memory: "200Mi",
+                            cpu: "150m",
+                        }
+                    },
+                    env: [{
+                        name: "TARGET_SERVER",
+                        value: svc_name
+                    }],
+                }]
+            },
+          }
+        }
+      })
 
-    unless @dry_run
-      @log.info "Create service=#{service.metadata.name} in namespace=#{service.metadata.namespace}"
-      begin 
-        service = @k8s.update_resource(service)
-      rescue K8s::Error::NotFound
-        service = @k8s.create_resource(service)
-      end
-    else
-      @log.info "[dry-run] Create service=#{service.metadata.name} in namespace=#{service.metadata.namespace}\n#{service.to_yaml}"
+      unless @dry_run
+        @log.info "Create deployment=#{deployment.metadata.name} in namespace=#{deployment.metadata.namespace}"
+        deployment = @k8s.create_resource(deployment)
+      else
+        @log.info "[dry-run] Create deployment=#{deployment.metadata.name} in namespace=#{deployment.metadata.namespace}: \n #{deployment.to_yaml}"
+      end 
     end
+
+
+    begin
+      service = @k8s.get_resource(K8s::Resource.new({
+        apiVersion: 'v1',
+        kind: 'Service',
+        metadata: {
+          namespace: @namespace,
+          name: "proxy-#{enc_address}",
+        },
+      }))
+
+      service[:metadata][:labels][:'sumcumo.com/ingress-service-name']=ingress_service_name
+      service[:metadata][:labels][:'sumcumo.com/ingress-service-namespace']=ingress_service_namespace
+      unless @dry_run
+        @log.info "Update service=#{service.metadata.name} in namespace=#{service.metadata.namespace}"
+        service = @k8s.update_resource(service)
+      else 
+        @log.info "[dry-run] Update service=#{service.metadata.name} in namespace=#{service.metadata.namespace}\n#{service.to_yaml}"
+      end 
+    rescue K8s::Error::NotFound 
+      service = K8s::Resource.new({
+        apiVersion: 'v1',
+        kind: 'Service',
+        metadata: {
+          namespace: @namespace,
+          name: "proxy-#{enc_address}",
+          labels: {
+            'app.kubernetes.io/name' => "hairpin-proxy",
+            'app.kubernetes.io/instance' => "haproxy-#{enc_address}",
+            'app.kubernetes.io/version' =>  @version,
+            'app.kubernetes.io/component' => "haproxy-service",
+            'app.kubernetes.io/part-of' => "hairpin-proxy",
+            'app.kubernetes.io/managed-by' => "hairpin-proxy-controller",
+            'sumcumo.com/ingress-service-name' => ingress_service_name,
+            'sumcumo.com/ingress-service-namespace' => ingress_service_namespace,
+          },
+        },
+        spec: {
+          type: 'ClusterIP',
+          ports: [
+            { 
+              name: "http",
+              port: 80 
+            },
+            { 
+              name: "https",
+              port: 443
+            },
+          ],
+          selector: { 'app.kubernetes.io/instance' => "haproxy-#{enc_address}"},
+        },  
+      })
+
+      unless @dry_run
+        @log.info "Create service=#{service.metadata.name} in namespace=#{service.metadata.namespace}"
+        service = @k8s.create_resource(service)
+      else
+        @log.info "[dry-run] Create service=#{service.metadata.name} in namespace=#{service.metadata.namespace}\n#{service.to_yaml}"
+      end
+    end 
 
     return {
       deployment: deployment,
