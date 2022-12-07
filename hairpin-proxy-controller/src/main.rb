@@ -180,7 +180,11 @@ class HairpinProxyController
        
     unless @dry_run
       @log.info "Create deployment=#{deployment.metadata.name} in namespace=#{deployment.metadata.namespace}"
-      deployment = @k8s.update_resource(deployment)
+      begin
+        deployment = @k8s.update_resource(deployment)
+      rescue K8s::Error::NotFound
+        deployment = @k8s.create_resource(deployment)
+      end
     else
       @log.info "[dry-run] Create deployment=#{deployment.metadata.name} in namespace=#{deployment.metadata.namespace}: \n #{deployment.to_yaml}"
     end 
@@ -219,7 +223,11 @@ class HairpinProxyController
 
     unless @dry_run
       @log.info "Create service=#{service.metadata.name} in namespace=#{service.metadata.namespace}"
-      service = @k8s.update_resource(service)
+      begin 
+        service = @k8s.update_resource(service)
+      rescue K8s::Error::NotFound
+        service = @k8s.create_resource(service)
+      end
     else
       @log.info "[dry-run] Create service=#{service.metadata.name} in namespace=#{service.metadata.namespace}\n#{service.to_yaml}"
     end
