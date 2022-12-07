@@ -2,67 +2,13 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: hairpin-proxy
-
 ---
-
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  labels:
-    app: hairpin-proxy-haproxy
-  name: hairpin-proxy-haproxy
-  namespace: hairpin-proxy
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: hairpin-proxy-haproxy
-  template:
-    metadata:
-      labels:
-        app: hairpin-proxy-haproxy
-    spec:
-      containers:
-        - image: compumike/hairpin-proxy-haproxy:0.2.1
-          name: main
-          resources:
-            requests:
-              memory: "100Mi"
-              cpu: "10m"
-            limits:
-              memory: "200Mi"
-              cpu: "50m"
-
----
-
-apiVersion: v1
-kind: Service
-metadata:
-  name: hairpin-proxy
-  namespace: hairpin-proxy
-spec:
-  selector:
-    app: hairpin-proxy-haproxy
-  ports:
-    - name: http
-      protocol: TCP
-      port: 80
-      targetPort: 80
-    - name: https
-      protocol: TCP
-      port: 443
-      targetPort: 443
-
----
-
 kind: ServiceAccount
 apiVersion: v1
 metadata:
   name: hairpin-proxy-controller-sa
   namespace: hairpin-proxy
-
 ---
-
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
@@ -77,9 +23,15 @@ rules:
       - get
       - list
       - watch
+  - apiGroups: [""]
+    resources:
+      - services
+    verbs:
+      - get
+      - list
+      - watch
 
 ---
-
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -92,14 +44,12 @@ subjects:
   - kind: ServiceAccount
     name: hairpin-proxy-controller-sa
     namespace: hairpin-proxy
-
 ---
-
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: hairpin-proxy-controller-r
-  namespace: kube-system
+  namespace: hairpin-proxy
 rules:
   - apiGroups: [""]
     resources:
@@ -110,14 +60,35 @@ rules:
       - get
       - watch
       - update
-
+  - apiGroups: [""]
+    resources:
+     - services
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups: ["apps"]
+    resources:
+     - deployments
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
 ---
 
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: hairpin-proxy-controller-rb
-  namespace: kube-system
+  namespace: hairpin-proxy
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -126,7 +97,6 @@ subjects:
   - kind: ServiceAccount
     name: hairpin-proxy-controller-sa
     namespace: hairpin-proxy
-
 ---
 
 apiVersion: apps/v1
@@ -151,7 +121,7 @@ spec:
         runAsUser: 405
         runAsGroup: 65533
       containers:
-        - image: compumike/hairpin-proxy-controller:0.2.1
+        - image: sumcumo/hairpin-proxy-controller:0.3.0
           name: main
           resources:
             requests:
