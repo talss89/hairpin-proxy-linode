@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Retry creating deployments/services if updating fails '
+time: 2022-12-07T16:07:06.002802+01:00
