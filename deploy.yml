@@ -26,6 +26,7 @@ rules:
   - apiGroups: [""]
     resources:
       - services
+      - configmaps
     verbs:
       - get
       - list
@@ -54,15 +55,13 @@ rules:
   - apiGroups: [""]
     resources:
       - configmaps
-    resourceNames:
-      - coredns
     verbs:
       - get
       - watch
       - update
   - apiGroups: [""]
     resources:
-     - services
+      - services
     verbs:
       - get
       - list
@@ -73,7 +72,7 @@ rules:
       - delete
   - apiGroups: ["apps"]
     resources:
-     - deployments
+      - deployments
     verbs:
       - get
       - list
@@ -121,7 +120,7 @@ spec:
         runAsUser: 405
         runAsGroup: 65533
       containers:
-        - image: sumcumo/hairpin-proxy-controller:0.3.0
+        - image: sumcumo/hairpin-proxy-controller:0.4.0
           name: main
           resources:
             requests:
