@@ -73,7 +73,7 @@ class HairpinProxyController
   def check_and_rewrite_coredns
     @log.info("Polling all Ingress resources and CoreDNS configuration...")
     hosts = fetch_ingress_hosts
-    cm = @k8s.api.resource("configmaps", namespace: "kube-system").get("coredns")
+    cm = @k8s.api.resource("configmaps", namespace: "kube-system").get("coredns-base")
 
     old_corefile = cm.data.Corefile
     new_corefile = coredns_corefile_with_rewrite_rules(old_corefile, hosts)
